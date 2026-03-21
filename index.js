@@ -46,21 +46,6 @@ app.post("/webhook", (req, res) => {
   res.sendStatus(200);
 });
 
-// 每小時整點檢查提醒
-cron.schedule("0 * * * *", async () => {
-  console.log("🔍 檢查提醒中...");
-  try {
-    const result = await fetch(
-      "https://api.claude.ai/storage/meetbot-tasks-v1"
-    ).catch(() => null);
-
-    // 從 Storage 讀取任務（透過 App 前端傳入）
-    console.log("✅ 提醒檢查完成");
-  } catch (e) {
-    console.error("提醒失敗:", e.message);
-  }
-});
-
 // 前端呼叫：發送提醒
 app.post("/notify", async (req, res) => {
   const { tasks, reminders } = req.body;
@@ -104,4 +89,28 @@ app.post("/notify", async (req, res) => {
     }
   }
 
-  res.json({ ok: t
+  res.json({ ok: true, sent });
+});
+
+// 測試用：瀏覽器直接觸發
+app.get("/test-me", async (req, res) => {
+  try {
+    await sendLine(
+      "Uece4baaf97cfab39ad79c6ed0ee55d03",
+      "📋 MeetBot 測試成功！LINE Bot 已正常連線 🎉"
+    );
+    res.send("訊息已發送，請查看你的 LINE ✅");
+  } catch (e) {
+    res.status(500).send("發送失敗：" + e.message);
+  }
+});
+
+app.get("/", (req, res) => res.send("MeetBot 後端運作中 ✅"));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`MeetBot 後端啟動，port ${PORT}`));
+```
+
+存檔 Commit，等部署完成後開啟：
+```
+https://meetbot-backend.onrender.com/test-me
