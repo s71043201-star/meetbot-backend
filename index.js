@@ -12,6 +12,7 @@ const MEMBERS = {
   "阿偉": "U1307dd217e15b4ef777f8f0561c2e589",
   "美玲": "Uc8e074d50b3b20581945f5c6aca80d1d",
   "志豪": "U7c71775e251051b61994eda22ddc2bec",
+  "小明": "U858b6b722d9a01e1a927d07f8ffc65ed",
 };
 
 async function sendLine(userId, message) {
