@@ -41,15 +41,103 @@ function daysLeft(deadline) {
   return Math.ceil((new Date(deadline) - new Date(today)) / 86400000);
 }
 
-// ── Webhook ───────────────────────────────────
-app.post("/webhook", (req, res) => {
-  const events = req.body.events || [];
-  events.forEach(event => {
-    if (event.type === "message") {
-      console.log(`👤 User ID: ${event.source.userId} 說：${event.message.text}`);
-    }
+// ── Firebase Admin（讀取任務）────────────────
+const https = require("https");
+
+async function fetchTasksFromFirebase() {
+  return new Promise((resolve) => {
+    const url = "https://meetbot-ede53-default-rtdb.asia-southeast1.firebasedatabase.app/meetbot/tasks.json";
+    https.get(url, (res) => {
+      let data = "";
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => {
+        try {
+          const obj = JSON.parse(data);
+          resolve(obj ? Object.values(obj) : []);
+        } catch { resolve([]); }
+      });
+    }).on("error", () => resolve([]));
   });
-  res.sendStatus(200);
+}
+
+// 反查 userId → 姓名
+const ID_TO_NAME = {
+  "U858b6b722d9a01e1a927d07f8ffc65ed": "黃琴茹",
+  "Uc05e7076d830f4f75ecc14a07b697e5c": "蔡蕙芳",
+  "U1307dd217e15b4ef777f8f0561c2e589": "吳承儒",
+  "U7c71775e251051b61994eda22ddc2bec": "張鈺微",
+  "Ue69dbd040159f69636c08dfd9568aa63": "吳亞璇",
+  "U87efc2433f2ab838929cbfbdb2851748": "許雅淇",
+  "Uece4baaf97cfab39ad79c6ed0ee55d03": "戴豐逸",
+  "Uc8e074d50b3b20581945f5c6aca80d1d": "陳佩研",
+};
+
+const BOSS_ID = "Uc05e7076d830f4f75ecc14a07b697e5c"; // 蔡蕙芳
+
+// ── Webhook ───────────────────────────────────
+app.post("/webhook", async (req, res) => {
+  res.sendStatus(200); // 先回 200，再非同步處理
+  const events = req.body.events || [];
+  for (const event of events) {
+    if (event.type !== "message" || event.message.type !== "text") continue;
+    const userId = event.source.userId;
+    const text   = event.message.text.trim();
+    console.log(`👤 User ID: ${userId} 說：${text}`);
+
+    // 指令：工作 → 回傳個人待辦
+    if (text === "工作") {
+      const name = ID_TO_NAME[userId];
+      if (!name) { await sendLine(userId, "❌ 找不到你的帳號，請聯絡管理員"); continue; }
+      const tasks = await fetchTasksFromFirebase();
+      const mine = tasks.filter(t => t.assignee === name && !t.done);
+      if (mine.length === 0) {
+        await sendLine(userId, `✅ ${name}，你目前沒有待辦任務！繼續保持 💪`);
+      } else {
+        const lines = mine.map((t, i) => {
+          const d = daysLeft(t.deadline);
+          const urgTag = d < 0 ? "🚨 逾期" : d === 0 ? "⚡ 今天截止" : d <= 2 ? `⏰ 剩 ${d} 天` : `📅 ${t.deadline}`;
+          return `${i+1}. ${t.title}\n   ${urgTag}`;
+        }).join("\n\n");
+        await sendLine(userId,
+          `📋 ${name} 的待辦任務（共 ${mine.length} 項）\n\n${lines}\n\n請在期限前完成 ✓`
+        );
+      }
+      continue;
+    }
+
+    // 指令：進度 → 僅蔡蕙芳可用，回傳全團隊概況
+    if (text === "進度") {
+      if (userId !== BOSS_ID) {
+        await sendLine(userId, "❌ 此功能僅限管理員使用");
+        continue;
+      }
+      const tasks = await fetchTasksFromFirebase();
+      const total = tasks.length;
+      const done  = tasks.filter(t => t.done).length;
+      const overdue = tasks.filter(t => !t.done && daysLeft(t.deadline) < 0).length;
+      const pct = total ? Math.round(done/total*100) : 0;
+
+      const memberLines = TEAM.map(name => {
+        const mine = tasks.filter(t => t.assignee === name);
+        const memberDone = mine.filter(t => t.done).length;
+        const memberPct = mine.length ? Math.round(memberDone/mine.length*100) : 100;
+        const bar = "█".repeat(Math.floor(memberPct/20)) + "░".repeat(5-Math.floor(memberPct/20));
+        const overTag = mine.filter(t=>!t.done&&daysLeft(t.deadline)<0).length > 0 ? " 🚨" : "";
+        return `${name}${overTag}\n${bar} ${memberPct}%（${memberDone}/${mine.length}）`;
+      }).join("\n\n");
+
+      await sendLine(BOSS_ID,
+        `📊 全團隊任務進度報告\n` +
+        `${"─".repeat(20)}\n` +
+        `整體完成率：${pct}%（${done}/${total}）\n` +
+        `逾期任務：${overdue} 項\n` +
+        `${"─".repeat(20)}\n\n` +
+        `${memberLines}\n\n` +
+        `⏰ 查詢時間：${new Date().toLocaleString("zh-TW",{timeZone:"Asia/Taipei"})}`
+      );
+      continue;
+    }
+  }
 });
 
 // ── AI 解析代理（解決 CORS）────────────────────
