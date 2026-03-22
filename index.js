@@ -8,12 +8,14 @@ app.use(express.json());
 const TOKEN = process.env.LINE_TOKEN;
 
 const MEMBERS = {
-  "小明": "U858b6b722d9a01e1a927d07f8ffc65ed",
-  "怡君": "Ue69dbd040159f69636c08dfd9568aa63",
-  "阿偉": "U1307dd217e15b4ef777f8f0561c2e589",
-  "美玲": "Uc8e074d50b3b20581945f5c6aca80d1d",
-  "志豪": "U7c71775e251051b61994eda22ddc2bec",
-  "逸":   "Uece4baaf97cfab39ad79c6ed0ee55d03",
+  "黃琴茹": "U858b6b722d9a01e1a927d07f8ffc65ed",
+  "蔡蕙芳": "Uc05e7076d830f4f75ecc14a07b697e5c",
+  "吳承儒": "U1307dd217e15b4ef777f8f0561c2e589",
+  "張鈺微": "U7c71775e251051b61994eda22ddc2bec",
+  "吳亞璇": "Ue69dbd040159f69636c08dfd9568aa63",
+  "許雅淇": "U87efc2433f2ab838929cbfbdb2851748",
+  "戴豐逸": "Uece4baaf97cfab39ad79c6ed0ee55d03",
+  "陳佩研": "Uc8e074d50b3b20581945f5c6aca80d1d",
 };
 
 async function sendLine(userId, message) {
