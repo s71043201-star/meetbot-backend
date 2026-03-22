@@ -115,28 +115,47 @@ app.post("/webhook", async (req, res) => {
         continue;
       }
       const tasks = await fetchTasksFromFirebase();
-      const total = tasks.length;
-      const done  = tasks.filter(t => t.done).length;
+      const total   = tasks.length;
+      const done    = tasks.filter(t => t.done).length;
       const overdue = tasks.filter(t => !t.done && daysLeft(t.deadline) < 0).length;
-      const pct = total ? Math.round(done/total*100) : 0;
+      const pct     = total ? Math.round(done/total*100) : 0;
 
       const memberLines = TEAM.map(name => {
-        const mine = tasks.filter(t => t.assignee === name);
-        const memberDone = mine.filter(t => t.done).length;
-        const memberPct = mine.length ? Math.round(memberDone/mine.length*100) : 100;
-        const bar = "█".repeat(Math.floor(memberPct/20)) + "░".repeat(5-Math.floor(memberPct/20));
-        const overTag = mine.filter(t=>!t.done&&daysLeft(t.deadline)<0).length > 0 ? " 🚨" : "";
-        return `${name}${overTag}\n${bar} ${memberPct}%（${memberDone}/${mine.length}）`;
-      }).join("\n\n");
+        const mine        = tasks.filter(t => t.assignee === name);
+        const memberDone  = mine.filter(t => t.done).length;
+        const memberPct   = mine.length ? Math.round(memberDone/mine.length*100) : 100;
+        const pending     = mine.filter(t => !t.done);
+        const doneList    = mine.filter(t => t.done);
+
+        let lines = `👤 ${name}（${memberDone}/${mine.length} 完成）`;
+
+        if (pending.length > 0) {
+          lines += "\n📌 待辦：";
+          pending.forEach(t => {
+            const d = daysLeft(t.deadline);
+            const tag = d < 0 ? `🚨逾期${Math.abs(d)}天` : d === 0 ? "⚡今天截止" : d <= 2 ? `⏰剩${d}天` : `📅${t.deadline}`;
+            lines += `\n  • ${t.title}\n    ${tag}`;
+          });
+        }
+
+        if (doneList.length > 0) {
+          lines += "\n✅ 已完成：";
+          doneList.forEach(t => { lines += `\n  • ${t.title}`; });
+        }
+
+        if (mine.length === 0) lines += "\n  （尚無指派任務）";
+
+        return lines;
+      }).join("\n\n" + "─".repeat(18) + "\n\n");
 
       await sendLine(userId,
         `📊 全團隊任務進度報告\n` +
-        `${"─".repeat(20)}\n` +
+        `${"═".repeat(20)}\n` +
         `整體完成率：${pct}%（${done}/${total}）\n` +
         `逾期任務：${overdue} 項\n` +
-        `${"─".repeat(20)}\n\n` +
+        `${"═".repeat(20)}\n\n` +
         `${memberLines}\n\n` +
-        `⏰ 查詢時間：${new Date().toLocaleString("zh-TW",{timeZone:"Asia/Taipei"})}`
+        `⏰ ${new Date().toLocaleString("zh-TW",{timeZone:"Asia/Taipei"})}`
       );
       continue;
     }
