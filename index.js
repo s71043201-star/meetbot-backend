@@ -131,6 +131,26 @@ app.post("/check-reminders", async (req, res) => {
   res.json({ ok: true, sent });
 });
 
+// ── 新增任務立即通知 ──────────────────────────
+app.post("/notify-new-task", async (req, res) => {
+  const { task } = req.body;
+  if (!task) return res.status(400).json({ error: "缺少 task" });
+  const userId = MEMBERS[task.assignee];
+  if (!userId) return res.json({ ok: false, reason: "找不到成員" });
+  try {
+    await sendLine(userId,
+      `📋 新任務指派 - MeetBot\n\n` +
+      `你有一項新任務：\n「${task.title}」\n\n` +
+      `截止日期：${task.deadline}\n` +
+      `來源會議：${task.meeting}\n\n` +
+      `請記得在期限前完成 ✓`
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── 測試 ──────────────────────────────────────
 app.get("/test-me", async (req, res) => {
   try {
