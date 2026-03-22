@@ -72,7 +72,10 @@ const ID_TO_NAME = {
   "Uc8e074d50b3b20581945f5c6aca80d1d": "陳佩研",
 };
 
-const BOSS_ID = "Uc05e7076d830f4f75ecc14a07b697e5c"; // 蔡蕙芳
+const BOSS_IDS = [
+  "Uc05e7076d830f4f75ecc14a07b697e5c", // 蔡蕙芳
+  "Uece4baaf97cfab39ad79c6ed0ee55d03",  // 戴豐逸
+];
 
 // ── Webhook ───────────────────────────────────
 app.post("/webhook", async (req, res) => {
@@ -105,9 +108,9 @@ app.post("/webhook", async (req, res) => {
       continue;
     }
 
-    // 指令：進度 → 僅蔡蕙芳可用，回傳全團隊概況
+    // 指令：進度 → 蔡蕙芳 & 戴豐逸可用，回傳全團隊概況
     if (text === "進度") {
-      if (userId !== BOSS_ID) {
+      if (!BOSS_IDS.includes(userId)) {
         await sendLine(userId, "❌ 此功能僅限管理員使用");
         continue;
       }
@@ -126,7 +129,7 @@ app.post("/webhook", async (req, res) => {
         return `${name}${overTag}\n${bar} ${memberPct}%（${memberDone}/${mine.length}）`;
       }).join("\n\n");
 
-      await sendLine(BOSS_ID,
+      await sendLine(userId,
         `📊 全團隊任務進度報告\n` +
         `${"─".repeat(20)}\n` +
         `整體完成率：${pct}%（${done}/${total}）\n` +
