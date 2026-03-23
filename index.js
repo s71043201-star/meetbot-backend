@@ -171,7 +171,7 @@ app.post("/parse-meeting", async (req, res) => {
   try {
     const response = await axios.post("https://api.anthropic.com/v1/messages", {
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
+      max_tokens: 4000,
       messages: [{
         role: "user",
         content: `你是會議記錄分析助理。從以下會議紀錄中，找出所有「任務/行動項目」。
