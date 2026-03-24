@@ -1013,6 +1013,4 @@ setInterval(async () => {
 }, 60000);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`MeetBot + 出缺勤系統啟動，port ${PORT}`));
-
-app.get('/', (req, res) => res.send('OK'));
+app.listen(PORT, '0.0.0.0', () => console.log(`MeetBot + 出缺勤系統啟動，port ${PORT}`));
