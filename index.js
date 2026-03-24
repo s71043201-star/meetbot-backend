@@ -1094,6 +1094,7 @@ app.get("/test-me", async (req, res) => {
 });
 
 app.get("/", (req, res) => res.redirect("/checkin.html"));
+app.get("/ping", (req, res) => res.send("pong"));
 
 // ── 排程器：平日提醒 ──────────────────────────
 let lastRun430 = "";
