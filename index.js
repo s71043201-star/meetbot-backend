@@ -123,6 +123,22 @@ async function sendLineWithQuickReply(userId, message, quickItems) {
   }, { headers: { Authorization: `Bearer ${TOKEN}` } });
 }
 
+async function replyLine(replyToken, message) {
+  if (!replyToken || !TOKEN) return;
+  await axios.post("https://api.line.me/v2/bot/message/reply", {
+    replyToken,
+    messages: [{ type: "text", text: message }]
+  }, { headers: { Authorization: `Bearer ${TOKEN}` } });
+}
+
+async function replyLineWithQuickReply(replyToken, message, quickItems) {
+  if (!replyToken || !TOKEN) return;
+  await axios.post("https://api.line.me/v2/bot/message/reply", {
+    replyToken,
+    messages: [{ type: "text", text: message, quickReply: { items: quickItems } }]
+  }, { headers: { Authorization: `Bearer ${TOKEN}` } });
+}
+
 function daysLeft(deadline) {
   const today = new Date().toISOString().slice(0, 10);
   return Math.ceil((new Date(deadline) - new Date(today)) / 86400000);
@@ -216,8 +232,9 @@ app.post("/webhook", async (req, res) => {
 
   for (const event of events) {
     if (event.type !== "message" || event.message.type !== "text") continue;
-    const userId = event.source.userId;
-    const text   = event.message.text.trim();
+    const userId     = event.source.userId;
+    const text       = event.message.text.trim();
+    const replyToken = event.replyToken;
     console.log(`👤 ${userId} 說：${text}`);
 
     // ── 指令說明 ──
@@ -229,7 +246,7 @@ app.post("/webhook", async (req, res) => {
         .map(([kw, s]) => `• ${kw} — ${s.name}`).join("\n");
       let msg = `📋 MeetBot 可用指令\n${"═".repeat(20)}\n\n👤 個人功能\n• 工作 — 查看我的待辦任務\n\n🖥 系統連結（輸入關鍵字取得網址）\n${sysLines}`;
       if (isBoss) msg += `\n\n🔑 管理員功能\n• 進度 — 查看全團隊任務進度\n• 下載 — 下載任務進度報告（PDF）\n• 臨時人員 3 — 查看某月出勤記錄\n• 提醒 姓名 — 向指定成員發出工作提醒`;
-      await sendLine(userId, msg);
+      await replyLine(replyToken, msg);
       continue;
     }
 
@@ -238,9 +255,9 @@ app.post("/webhook", async (req, res) => {
       const s = SYSTEMS[text];
       const restricted = ['後台', '簽到'].includes(text);
       if (restricted && !ATT_BOSS_IDS.includes(userId)) {
-        await sendLine(userId, `❌ 此功能僅限管理員與佩研使用\n\n你可以使用：\n• 工作 — 查看我的待辦任務\n• 會議 — 會議任務系統\n• 週報 — 週報統計系統\n• 歷次列管 — 會議列管事項系統`);
+        await replyLine(replyToken, `❌ 此功能僅限管理員與佩研使用\n\n你可以使用：\n• 工作 — 查看我的待辦任務\n• 會議 — 會議任務系統\n• 週報 — 週報統計系統\n• 歷次列管 — 會議列管事項系統`);
       } else {
-        await sendLine(userId, `🖥 ${s.name}\n\n🔗 ${s.url}`);
+        await replyLine(replyToken, `🖥 ${s.name}\n\n🔗 ${s.url}`);
       }
       continue;
     }
@@ -248,7 +265,7 @@ app.post("/webhook", async (req, res) => {
     // ── 提醒（圖文選單按鈕，無姓名 → 快速選人） ──
     if (text === "提醒") {
       if (!BOSS_IDS.includes(userId)) {
-        await sendLine(userId, "❌ 此功能僅限管理員使用");
+        await replyLine(replyToken, "❌ 此功能僅限管理員使用");
         continue;
       }
       const senderName  = ID_TO_NAME[userId] || "";
@@ -257,7 +274,7 @@ app.post("/webhook", async (req, res) => {
         type: "action",
         action: { type: "message", label: name, text: `提醒 ${name}` }
       }));
-      await sendLineWithQuickReply(userId, "請選擇要提醒的成員：", quickItems);
+      await replyLineWithQuickReply(replyToken, "請選擇要提醒的成員：", quickItems);
       continue;
     }
 
@@ -265,52 +282,52 @@ app.post("/webhook", async (req, res) => {
     const remindMatch = text.match(/^提醒\s*(.+)$/);
     if (remindMatch) {
       if (!BOSS_IDS.includes(userId)) {
-        await sendLine(userId, "❌ 此功能僅限管理員使用");
+        await replyLine(replyToken, "❌ 此功能僅限管理員使用");
         continue;
       }
       const targetName = remindMatch[1].trim();
       const targetId   = MEMBERS[targetName];
       if (!targetId) {
-        await sendLine(userId, `❌ 找不到成員「${targetName}」`);
+        await replyLine(replyToken, `❌ 找不到成員「${targetName}」`);
         continue;
       }
       await sendLine(targetId, `📌 工作進度提醒\n\n蔡蕙芳 希望你查看今日工作進度，並在系統中勾選已完成的任務。\n\n🔗 meetbot 系統：https://s71043201-star.github.io/meetbot-app/`);
-      await sendLine(userId, `✅ 已向 ${targetName} 發出提醒`);
+      await replyLine(replyToken, `✅ 已向 ${targetName} 發出提醒`);
       continue;
     }
 
     // ── 臨時人員 ──
     if (text === "臨時人員") {
       if (!ATT_BOSS_IDS.includes(userId)) {
-        await sendLine(userId, "❌ 此功能僅限管理員使用");
+        await replyLine(replyToken, "❌ 此功能僅限管理員使用");
         continue;
       }
-      await sendLine(userId, `📋 臨時人員查詢\n\n請輸入要查詢的月份：\n臨時人員 3\n（或「臨時人員 3月」）`);
+      await replyLine(replyToken, `📋 臨時人員查詢\n\n請輸入要查詢的月份：\n臨時人員 3\n（或「臨時人員 3月」）`);
       continue;
     }
 
     const tempMatch = text.match(/^臨時人員\s*(\d+)月?$/);
     if (tempMatch) {
       if (!ATT_BOSS_IDS.includes(userId)) {
-        await sendLine(userId, "❌ 此功能僅限管理員使用");
+        await replyLine(replyToken, "❌ 此功能僅限管理員使用");
         continue;
       }
       const month   = parseInt(tempMatch[1]);
       const records = await fetchAttendance();
-      await sendLine(userId, buildAttendanceReport(records, month));
+      await replyLine(replyToken, buildAttendanceReport(records, month));
       continue;
     }
 
     // ── 下載 → 推送 PDF 報告連結（蔡蕙芳/戴豐逸）──
     if (text === "下載") {
       if (!BOSS_IDS.includes(userId)) {
-        await sendLine(userId, "❌ 此功能僅限管理員使用");
+        await replyLine(replyToken, "❌ 此功能僅限管理員使用");
         continue;
       }
-      await sendLine(userId,
+      await replyLine(replyToken,
         `📄 MeetBot 任務報告 PDF\n\n` +
         `點以下連結開啟報告，再點「另存 PDF」即可下載：\n\n` +
-        `https://meetbot-check-in-system.onrender.com/export-pdf\n\n` +
+        `https://meetbot-backend.onrender.com/export-pdf\n\n` +
         `⚠️ 初次載入可能需稍等 10 秒（冷啟動）`
       );
       continue;
@@ -319,18 +336,18 @@ app.post("/webhook", async (req, res) => {
     // ── 工作 ──
     if (text === "工作") {
       const name = ID_TO_NAME[userId];
-      if (!name) { await sendLine(userId, "❌ 找不到你的帳號，請聯絡管理員"); continue; }
+      if (!name) { await replyLine(replyToken, "❌ 找不到你的帳號，請聯絡管理員"); continue; }
       const tasks = await fetchTasksFromFirebase();
       const mine  = tasks.filter(t => t.assignee === name && !t.done);
       if (mine.length === 0) {
-        await sendLine(userId, `✅ ${name}，你目前沒有待辦任務！繼續保持 💪`);
+        await replyLine(replyToken, `✅ ${name}，你目前沒有待辦任務！繼續保持 💪`);
       } else {
         const lines = mine.map((t, i) => {
           const d = daysLeft(t.deadline);
           const tag = d < 0 ? "🚨 逾期" : d === 0 ? "⚡ 今天截止" : d <= 2 ? `⏰ 剩 ${d} 天` : `📅 ${t.deadline}`;
           return `${i+1}. ${t.title}\n   ${tag}`;
         }).join("\n\n");
-        await sendLine(userId, `📋 ${name} 的待辦任務（共 ${mine.length} 項）\n\n${lines}\n\n請在期限前完成 ✓`);
+        await replyLine(replyToken, `📋 ${name} 的待辦任務（共 ${mine.length} 項）\n\n${lines}\n\n請在期限前完成 ✓`);
       }
       continue;
     }
@@ -338,7 +355,7 @@ app.post("/webhook", async (req, res) => {
     // ── 進度 ──
     if (text === "進度") {
       if (!BOSS_IDS.includes(userId)) {
-        await sendLine(userId, "❌ 此功能僅限管理員使用");
+        await replyLine(replyToken, "❌ 此功能僅限管理員使用");
         continue;
       }
       const tasks   = await fetchTasksFromFirebase();
@@ -369,7 +386,7 @@ app.post("/webhook", async (req, res) => {
         return lines;
       }).join("\n\n" + "─".repeat(18) + "\n\n");
 
-      await sendLine(userId,
+      await replyLine(replyToken,
         `📊 全團隊任務進度報告\n${"═".repeat(20)}\n整體完成率：${pct}%（${done}/${total}）\n逾期任務：${overdue} 項\n${"═".repeat(20)}\n\n${memberLines}\n\n⏰ ${new Date().toLocaleString("zh-TW",{timeZone:"Asia/Taipei"})}`
       );
       continue;
