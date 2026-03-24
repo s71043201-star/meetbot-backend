@@ -309,7 +309,11 @@ app.post("/webhook", async (req, res) => {
         await replyLine(replyToken, "❌ 此功能僅限管理員使用");
         continue;
       }
-      await replyLine(replyToken, `📋 臨時人員查詢\n\n請輸入要查詢的月份：\n臨時人員 3\n（或「臨時人員 3月」）`);
+      const monthItems = Array.from({ length: 12 }, (_, i) => ({
+        type: "action",
+        action: { type: "message", label: `${i + 1}月`, text: `臨時人員 ${i + 1}` }
+      }));
+      await replyLineWithQuickReply(replyToken, "📋 臨時人員查詢\n\n請選擇要查詢的月份：", monthItems);
       continue;
     }
 
