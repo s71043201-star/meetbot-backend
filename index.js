@@ -952,6 +952,49 @@ app.get("/setup-richmenu", async (req, res) => {
   }
 });
 
+// ── 佩研+戴豐逸 管理員選單（6格）────────────────────
+app.get("/setup-admin-menu", async (req, res) => {
+  const secret = process.env.SETUP_SECRET || "meetbot2024";
+  if (req.query.secret !== secret) return res.status(403).send("Forbidden");
+  const log = [];
+  const lineHdr = { Authorization: `Bearer ${TOKEN}` };
+  try {
+    const menuDef = {
+      size: { width: 2500, height: 1686 },
+      selected: true,
+      name: "admin-menu-6",
+      chatBarText: "功能選單",
+      areas: [
+        { bounds: { x: 0,    y: 0,    width: 833, height: 843 }, action: { type: "message", label: "簽到",   text: "簽到" } },
+        { bounds: { x: 833,  y: 0,    width: 833, height: 843 }, action: { type: "message", label: "後台",   text: "後台" } },
+        { bounds: { x: 1666, y: 0,    width: 834, height: 843 }, action: { type: "message", label: "工作",   text: "工作" } },
+        { bounds: { x: 0,    y: 843,  width: 833, height: 843 }, action: { type: "uri",     label: "Meetbot", uri: "https://s71043201-star.github.io/meetbot-app/" } },
+        { bounds: { x: 833,  y: 843,  width: 833, height: 843 }, action: { type: "message", label: "臨時人員", text: "臨時人員" } },
+        { bounds: { x: 1666, y: 843,  width: 834, height: 843 }, action: { type: "message", label: "指令說明", text: "指令" } },
+      ]
+    };
+    const { data: created } = await axios.post("https://api.line.me/v2/bot/richmenu", menuDef,
+      { headers: { ...lineHdr, "Content-Type": "application/json" } });
+    const richMenuId = created.richMenuId;
+    log.push(`✅ 建立選單: ${richMenuId}`);
+    const imgBuf = fs.readFileSync(path.join(__dirname, "public", "richmenu-admin.jpg"));
+    await axios.post(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
+      imgBuf, { headers: { ...lineHdr, "Content-Type": "image/jpeg" } });
+    log.push(`✅ 上傳圖片 (${(imgBuf.length / 1024).toFixed(0)} KB)`);
+    const targets = [
+      ["陳佩研", "Uc8e074d50b3b20581945f5c6aca80d1d"],
+      ["戴豐逸", "Uece4baaf97cfab39ad79c6ed0ee55d03"],
+    ];
+    for (const [name, uid] of targets) {
+      await axios.post(`https://api.line.me/v2/bot/user/${uid}/richmenu/${richMenuId}`, {}, { headers: lineHdr });
+      log.push(`✅ 綁定 ${name}`);
+    }
+    res.send(log.join("\n") + "\n\n✅ 完成！");
+  } catch (e) {
+    res.status(500).send(log.join("\n") + "\n\n❌ 錯誤: " + (e.response?.data ? JSON.stringify(e.response.data) : e.message));
+  }
+});
+
 // ── 將戴豐逸綁定為蕙芳同款選單 ────────────────────
 app.get("/link-boss-menu", async (req, res) => {
   const secret = process.env.SETUP_SECRET || "meetbot2024";
