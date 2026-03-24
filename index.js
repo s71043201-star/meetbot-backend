@@ -928,6 +928,21 @@ app.get("/setup-richmenu", async (req, res) => {
   }
 });
 
+// ── LINE 額度查詢 ──────────────────────────────
+app.get("/line-quota", async (req, res) => {
+  try {
+    const [quota, consumption] = await Promise.all([
+      axios.get("https://api.line.me/v2/bot/message/quota", { headers: { Authorization: `Bearer ${TOKEN}` } }),
+      axios.get("https://api.line.me/v2/bot/message/quota/consumption", { headers: { Authorization: `Bearer ${TOKEN}` } }),
+    ]);
+    const limit = quota.data.value ?? "無限制";
+    const used  = consumption.data.totalUsage;
+    res.send(`📊 LINE 訊息額度\n本月已用：${used} 則\n上限：${limit} 則\n剩餘：${limit === "無限制" ? "無限制" : limit - used} 則`);
+  } catch (e) {
+    res.status(500).send("查詢失敗：" + (e.response?.data ? JSON.stringify(e.response.data) : e.message));
+  }
+});
+
 // ── 測試 ──────────────────────────────────────
 app.get("/test-me", async (req, res) => {
   try {
