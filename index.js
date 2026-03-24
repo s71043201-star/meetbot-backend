@@ -139,6 +139,14 @@ async function replyLineWithQuickReply(replyToken, message, quickItems) {
   }, { headers: { Authorization: `Bearer ${TOKEN}` } });
 }
 
+async function replyLineMulti(replyToken, messages) {
+  if (!replyToken || !TOKEN) return;
+  await axios.post("https://api.line.me/v2/bot/message/reply", {
+    replyToken,
+    messages
+  }, { headers: { Authorization: `Bearer ${TOKEN}` } });
+}
+
 function daysLeft(deadline) {
   const today = new Date().toISOString().slice(0, 10);
   return Math.ceil((new Date(deadline) - new Date(today)) / 86400000);
@@ -263,6 +271,12 @@ app.post("/webhook", async (req, res) => {
       const restricted = ['後台', '簽到'].includes(text);
       if (restricted && !ATT_BOSS_IDS.includes(userId)) {
         await replyLine(replyToken, `❌ 此功能僅限管理員與佩研使用\n\n你可以使用：\n• 工作 — 查看我的待辦任務\n• 會議 — 會議任務系統\n• 週報 — 週報統計系統\n• 歷次列管 — 會議列管事項系統`);
+      } else if (text === "簽到") {
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(s.url)}`;
+        await replyLineMulti(replyToken, [
+          { type: "text", text: `🖥 ${s.name}\n\n🔗 ${s.url}` },
+          { type: "image", originalContentUrl: qrUrl, previewImageUrl: qrUrl }
+        ]);
       } else {
         await replyLine(replyToken, `🖥 ${s.name}\n\n🔗 ${s.url}`);
       }
