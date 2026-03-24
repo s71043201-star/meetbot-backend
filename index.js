@@ -1013,6 +1013,44 @@ app.get("/setup-admin-menu", async (req, res) => {
   }
 });
 
+// ── 蔡蕙芳專屬選單（6格）────────────────────────────
+app.get("/setup-huifang-menu", async (req, res) => {
+  const secret = process.env.SETUP_SECRET || "meetbot2024";
+  if (req.query.secret !== secret) return res.status(403).send("Forbidden");
+  const log = [];
+  const lineHdr = { Authorization: `Bearer ${TOKEN}` };
+  try {
+    const menuDef = {
+      size: { width: 2500, height: 1686 },
+      selected: true,
+      name: "huifang-menu-6",
+      chatBarText: "功能選單",
+      areas: [
+        { bounds: { x: 0,    y: 0,    width: 833, height: 843 }, action: { type: "uri",     label: "週報",        uri: "https://s71043201-star.github.io/tpma-statistics/" } },
+        { bounds: { x: 833,  y: 0,    width: 833, height: 843 }, action: { type: "message", label: "進度",        text: "進度" } },
+        { bounds: { x: 1666, y: 0,    width: 834, height: 843 }, action: { type: "message", label: "下載",        text: "下載" } },
+        { bounds: { x: 0,    y: 843,  width: 833, height: 843 }, action: { type: "message", label: "提醒",        text: "提醒" } },
+        { bounds: { x: 833,  y: 843,  width: 833, height: 843 }, action: { type: "message", label: "工作",        text: "工作" } },
+        { bounds: { x: 1666, y: 843,  width: 834, height: 843 }, action: { type: "uri",     label: "Meetbot",    uri: "https://s71043201-star.github.io/meetbot-app/" } },
+      ]
+    };
+    const { data: created } = await axios.post("https://api.line.me/v2/bot/richmenu", menuDef,
+      { headers: { ...lineHdr, "Content-Type": "application/json" } });
+    const richMenuId = created.richMenuId;
+    log.push(`✅ 建立選單: ${richMenuId}`);
+    const imgBuf = fs.readFileSync(path.join(__dirname, "public", "richmenu-huifang.jpg"));
+    await axios.post(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
+      imgBuf, { headers: { ...lineHdr, "Content-Type": "image/jpeg" } });
+    log.push(`✅ 上傳圖片 (${(imgBuf.length / 1024).toFixed(0)} KB)`);
+    const huifangId = "Uc05e7076d830f4f75ecc14a07b697e5c";
+    await axios.post(`https://api.line.me/v2/bot/user/${huifangId}/richmenu/${richMenuId}`, {}, { headers: lineHdr });
+    log.push(`✅ 綁定 蔡蕙芳`);
+    res.send(log.join("\n") + "\n\n✅ 完成！");
+  } catch (e) {
+    res.status(500).send(log.join("\n") + "\n\n❌ 錯誤: " + (e.response?.data ? JSON.stringify(e.response.data) : e.message));
+  }
+});
+
 // ── 將戴豐逸綁定為蕙芳同款選單 ────────────────────
 app.get("/link-boss-menu", async (req, res) => {
   const secret = process.env.SETUP_SECRET || "meetbot2024";
