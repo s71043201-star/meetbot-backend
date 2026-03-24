@@ -952,6 +952,23 @@ app.get("/setup-richmenu", async (req, res) => {
   }
 });
 
+// ── 將戴豐逸綁定為蕙芳同款選單 ────────────────────
+app.get("/link-boss-menu", async (req, res) => {
+  const secret = process.env.SETUP_SECRET || "meetbot2024";
+  if (req.query.secret !== secret) return res.status(403).send("Forbidden");
+  const lineHdr = { Authorization: `Bearer ${TOKEN}` };
+  try {
+    const huifangId = "Uc05e7076d830f4f75ecc14a07b697e5c";
+    const daifengyi = "Uece4baaf97cfab39ad79c6ed0ee55d03";
+    const { data } = await axios.get(`https://api.line.me/v2/bot/user/${huifangId}/richmenu`, { headers: lineHdr });
+    const menuId = data.richMenuId;
+    await axios.post(`https://api.line.me/v2/bot/user/${daifengyi}/richmenu/${menuId}`, {}, { headers: lineHdr });
+    res.send(`✅ 已將戴豐逸綁定至蕙芳的選單 (${menuId})`);
+  } catch (e) {
+    res.status(500).send("❌ 失敗：" + (e.response?.data ? JSON.stringify(e.response.data) : e.message));
+  }
+});
+
 // ── LINE 額度查詢 ──────────────────────────────
 app.get("/line-quota", async (req, res) => {
   try {
