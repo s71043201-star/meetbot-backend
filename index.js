@@ -223,11 +223,18 @@ function buildAttendanceReport(records, month) {
   return msg.trim();
 }
 
+// ── webhook 診斷紀錄 ──────────────────────────
+let lastWebhook = null;
+app.get("/debug-webhook", (req, res) => {
+  res.json(lastWebhook || { message: "尚未收到任何 webhook" });
+});
+
 // ══════════════════════════════════════════════
 // MeetBot Webhook
 // ══════════════════════════════════════════════
 app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
+  lastWebhook = { time: new Date().toISOString(), body: req.body };
   const events = req.body.events || [];
 
   for (const event of events) {
