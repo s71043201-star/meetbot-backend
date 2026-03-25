@@ -769,7 +769,16 @@ app.post("/notify-task-done", async (req, res) => {
 // ── 匯出 PDF 任務報告 ────────────────────────
 app.get("/export-pdf", async (req, res) => {
   try {
-    const tasks = await fetchTasksFromFirebase();
+    let tasks = await fetchTasksFromFirebase();
+    const { from, to } = req.query;
+    if (from || to) {
+      tasks = tasks.filter(t => {
+        if (!t.deadline) return false;
+        if (from && t.deadline < from) return false;
+        if (to   && t.deadline > to)   return false;
+        return true;
+      });
+    }
     const now = new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
     const total = tasks.length;
     const doneCount = tasks.filter(t => t.done).length;
@@ -824,7 +833,7 @@ app.get("/export-pdf", async (req, res) => {
 <body>
 <button class="save-btn" onclick="window.print()">另存 PDF</button>
 <h1>📋 MeetBot 任務進度報告</h1>
-<div class="sub">匯出時間：${now}　整體完成率：${pct}%（${doneCount}/${total}）</div>
+<div class="sub">匯出時間：${now}${from||to ? `　時段：${from||'起始'}～${to||'結束'}` : ''}　整體完成率：${pct}%（${doneCount}/${total}）</div>
 <table>
   <tr><th class="td-main">任務</th><th class="td-cell">負責人</th><th class="td-cell">截止日期</th><th class="td-cell">狀態</th></tr>
   ${rows}
