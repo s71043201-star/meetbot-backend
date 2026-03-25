@@ -773,9 +773,9 @@ app.get("/export-pdf", async (req, res) => {
     const { from, to } = req.query;
     if (from || to) {
       tasks = tasks.filter(t => {
-        if (!t.deadline) return false;
-        if (from && t.deadline < from) return false;
-        if (to   && t.deadline > to)   return false;
+        const dateStr = t.createdAt || new Date(t.id).toISOString().slice(0,10);
+        if (from && dateStr < from) return false;
+        if (to   && dateStr > to)   return false;
         return true;
       });
     }
@@ -833,7 +833,7 @@ app.get("/export-pdf", async (req, res) => {
 <body>
 <button class="save-btn" onclick="window.print()">另存 PDF</button>
 <h1>📋 MeetBot 任務進度報告</h1>
-<div class="sub">匯出時間：${now}${from||to ? `　時段：${from||'起始'}～${to||'結束'}` : ''}　整體完成率：${pct}%（${doneCount}/${total}）</div>
+<div class="sub">匯出時間：${now}${from||to ? `　新增日期：${from||'起始'}～${to||'結束'}` : ''}　整體完成率：${pct}%（${doneCount}/${total}）</div>
 <table>
   <tr><th class="td-main">任務</th><th class="td-cell">負責人</th><th class="td-cell">截止日期</th><th class="td-cell">狀態</th></tr>
   ${rows}
