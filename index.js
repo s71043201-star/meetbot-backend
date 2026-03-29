@@ -1142,6 +1142,17 @@ app.get("/test-me", async (req, res) => {
 app.get("/", (req, res) => res.redirect("/checkin.html"));
 app.get("/ping", (req, res) => res.send("pong"));
 
+app.get("/test-slack", async (req, res) => {
+  const hasUrl = !!SLACK_WEBHOOK_URL;
+  if (!hasUrl) return res.json({ ok: false, reason: "SLACK_WEBHOOK_URL 未設定", envKeys: Object.keys(process.env).filter(k => k.includes("SLACK")) });
+  try {
+    await axios.post(SLACK_WEBHOOK_URL, { text: "✅ Slack 連線測試成功！" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ── 排程器：平日提醒 ──────────────────────────
 let lastRun430 = "";
 let lastRun450 = "";
