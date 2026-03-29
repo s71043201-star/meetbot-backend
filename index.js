@@ -105,8 +105,14 @@ const ATT_NOTIFY_IDS = [
 
 const TASKS_FB = "https://meetbot-ede53-default-rtdb.asia-southeast1.firebasedatabase.app/meetbot/tasks.json";
 const ATT_FB   = "https://meetbot-ede53-default-rtdb.asia-southeast1.firebasedatabase.app/attendance";
+const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
 // ── 工具函式 ──────────────────────────────────
+async function sendSlack(text) {
+  if (!SLACK_WEBHOOK_URL) return;
+  await axios.post(SLACK_WEBHOOK_URL, { text }).catch(e => console.error("Slack 發送失敗:", e.message));
+}
+
 async function sendLine(userId, message) {
   if (!userId || !TOKEN) return;
   await axios.post("https://api.line.me/v2/bot/message/push", {
@@ -450,15 +456,21 @@ app.post("/check-reminders", async (req, res) => {
     const userId = MEMBERS[task.assignee];
     if (!userId) continue;
     if (reminders.dayBefore?.on && dl === reminders.dayBefore.days && hour === reminders.dayBefore.hour) {
-      await sendLine(userId, `📋 任務提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n截止日期：${task.deadline}（剩 ${dl} 天）\n\n請記得完成 ✓`);
+      const msg = `📋 任務提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n截止日期：${task.deadline}（剩 ${dl} 天）\n\n請記得完成 ✓`;
+      await sendLine(userId, msg);
+      await sendSlack(msg);
       sent++;
     }
     if (reminders.hourBefore?.on && dl === 0 && hour === (23 - reminders.hourBefore.hours)) {
-      await sendLine(userId, `⚡ 緊急提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n今天截止！剩約 ${reminders.hourBefore.hours} 小時\n\n請盡快完成 🔥`);
+      const msg = `⚡ 緊急提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n今天截止！剩約 ${reminders.hourBefore.hours} 小時\n\n請盡快完成 🔥`;
+      await sendLine(userId, msg);
+      await sendSlack(msg);
       sent++;
     }
     if (reminders.overdueAlert?.on && dl < 0) {
-      await sendLine(userId, `🚨 逾期警示 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n已逾期 ${Math.abs(dl)} 天！\n\n請盡快處理 ⚠️`);
+      const msg = `🚨 逾期警示 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n已逾期 ${Math.abs(dl)} 天！\n\n請盡快處理 ⚠️`;
+      await sendLine(userId, msg);
+      await sendSlack(msg);
       sent++;
     }
   }
@@ -472,7 +484,9 @@ app.post("/notify-new-task", async (req, res) => {
   const userId = MEMBERS[task.assignee];
   if (!userId) return res.json({ ok: false, reason: "找不到成員" });
   try {
-    await sendLine(userId, `📋 新任務指派 - MeetBot\n\n你有一項新任務：\n「${task.title}」\n\n截止日期：${task.deadline}\n來源會議：${task.meeting}\n\n請記得在期限前完成 ✓`);
+    const msg = `📋 新任務指派 - MeetBot\n\n你有一項新任務：\n「${task.title}」\n\n負責人：${task.assignee}\n截止日期：${task.deadline}\n來源會議：${task.meeting}\n\n請記得在期限前完成 ✓`;
+    await sendLine(userId, msg);
+    await sendSlack(msg);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -506,6 +520,7 @@ app.post("/checkin", async (req, res) => {
     const timeStr   = taipei.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
     const msg = `✅ 臨時人員簽到\n\n👤 姓名：${name}\n📚 課程：${course}\n⏰ 簽到時間：${timeStr}`;
     for (const uid of ATT_NOTIFY_IDS) await sendLine(uid, msg).catch(() => {});
+    await sendSlack(msg);
     res.json({ ok: true, sessionId });
   } catch (e) {
     console.error("checkin:", e.message);
@@ -557,6 +572,7 @@ app.post("/checkout", async (req, res) => {
 
     const msg = `🔚 臨時人員簽退\n\n👤 姓名：${record.name}\n📚 課程：${record.course}\n🏷 屬性：${courseType || "-"}\n⏰ 簽到：${checkinStr}　簽退：${checkoutStr}\n⏱ 時數：${hours} 小時\n👥 實到：${actualCount ?? "-"} 人\n\n📄 課程記錄（可列印/存PDF）：\n${downloadUrl}`;
     for (const notifyId of ATT_NOTIFY_IDS) await sendLine(notifyId, msg).catch(() => {});
+    await sendSlack(msg);
     res.json({ ok: true, hours });
   } catch (e) {
     console.error("checkout:", e.message);
@@ -759,7 +775,9 @@ app.post("/notify-task-done", async (req, res) => {
   const userId = MEMBERS[task.assignee];
   if (!userId) return res.json({ ok: false, reason: "找不到成員" });
   try {
-    await sendLine(userId, `🎉 恭喜 ${task.assignee}！\n\n「${task.title}」已完成！\n\n辛苦了，繼續保持 💪`);
+    const msg = `🎉 恭喜 ${task.assignee}！\n\n「${task.title}」已完成！\n\n辛苦了，繼續保持 💪`;
+    await sendLine(userId, msg);
+    await sendSlack(msg);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
