@@ -318,7 +318,9 @@ app.post("/webhook", async (req, res) => {
         await replyLine(replyToken, `❌ 找不到成員「${targetName}」`);
         continue;
       }
-      await sendLine(targetId, `📌 工作進度提醒\n\n蔡蕙芳 希望你查看今日工作進度，並在系統中勾選已完成的任務。\n\n🔗 meetbot 系統：https://s71043201-star.github.io/meetbot-app/`);
+      const remindMsg = `📌 工作進度提醒\n\n蔡蕙芳 希望你查看今日工作進度，並在系統中勾選已完成的任務。\n\n🔗 meetbot 系統：https://s71043201-star.github.io/meetbot-app/`;
+      await sendLine(targetId, remindMsg);
+      await sendSlack(`📌 工作進度提醒\n\n已向 ${targetName} 發出提醒，請查看今日工作進度。`);
       await replyLine(replyToken, `✅ 已向 ${targetName} 發出提醒`);
       continue;
     }
