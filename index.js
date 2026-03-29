@@ -336,7 +336,7 @@ app.post("/webhook", async (req, res) => {
         continue;
       }
       const remindMsg = `📌 工作進度提醒\n\n蔡蕙芳 希望你查看今日工作進度，並在系統中勾選已完成的任務。\n\n🔗 meetbot 系統：https://s71043201-star.github.io/meetbot-app/`;
-      await sendLine(targetId, remindMsg);
+      await sendLine(targetId, remindMsg).catch(() => {});
       await sendSlack(`📌 工作進度提醒\n\n${slackMention(targetName)} 請查看今日工作進度，並在系統中勾選已完成的任務。\n\n🔗 meetbot 系統：https://s71043201-star.github.io/meetbot-app/`);
       await replyLine(replyToken, `✅ 已向 ${targetName} 發出提醒`);
       continue;
@@ -476,19 +476,19 @@ app.post("/check-reminders", async (req, res) => {
     if (!userId) continue;
     if (reminders.dayBefore?.on && dl === reminders.dayBefore.days && hour === reminders.dayBefore.hour) {
       const lineMsg = `📋 任務提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n截止日期：${task.deadline}（剩 ${dl} 天）\n\n請記得完成 ✓`;
-      await sendLine(userId, lineMsg);
+      await sendLine(userId, lineMsg).catch(() => {});
       await sendSlack(`📋 任務提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${slackMention(task.assignee)}\n截止日期：${task.deadline}（剩 ${dl} 天）\n\n請記得完成 ✓`);
       sent++;
     }
     if (reminders.hourBefore?.on && dl === 0 && hour === (23 - reminders.hourBefore.hours)) {
       const lineMsg = `⚡ 緊急提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n今天截止！剩約 ${reminders.hourBefore.hours} 小時\n\n請盡快完成 🔥`;
-      await sendLine(userId, lineMsg);
+      await sendLine(userId, lineMsg).catch(() => {});
       await sendSlack(`⚡ 緊急提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${slackMention(task.assignee)}\n今天截止！剩約 ${reminders.hourBefore.hours} 小時\n\n請盡快完成 🔥`);
       sent++;
     }
     if (reminders.overdueAlert?.on && dl < 0) {
       const lineMsg = `🚨 逾期警示 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n已逾期 ${Math.abs(dl)} 天！\n\n請盡快處理 ⚠️`;
-      await sendLine(userId, lineMsg);
+      await sendLine(userId, lineMsg).catch(() => {});
       await sendSlack(`🚨 逾期警示 - MeetBot\n\n「${task.title}」\n\n負責人：${slackMention(task.assignee)}\n已逾期 ${Math.abs(dl)} 天！\n\n請盡快處理 ⚠️`);
       sent++;
     }
@@ -504,7 +504,7 @@ app.post("/notify-new-task", async (req, res) => {
   if (!userId) return res.json({ ok: false, reason: "找不到成員" });
   try {
     const lineMsg = `📋 新任務指派 - MeetBot\n\n你有一項新任務：\n「${task.title}」\n\n負責人：${task.assignee}\n截止日期：${task.deadline}\n來源會議：${task.meeting}\n\n請記得在期限前完成 ✓`;
-    await sendLine(userId, lineMsg);
+    await sendLine(userId, lineMsg).catch(() => {});
     await sendSlack(`📋 新任務指派 - MeetBot\n\n${slackMention(task.assignee)} 有一項新任務：\n「${task.title}」\n\n截止日期：${task.deadline}\n來源會議：${task.meeting}\n\n請記得在期限前完成 ✓`);
     res.json({ ok: true });
   } catch (e) {
@@ -795,7 +795,7 @@ app.post("/notify-task-done", async (req, res) => {
   if (!userId) return res.json({ ok: false, reason: "找不到成員" });
   try {
     const lineMsg = `🎉 恭喜 ${task.assignee}！\n\n「${task.title}」已完成！\n\n辛苦了，繼續保持 💪`;
-    await sendLine(userId, lineMsg);
+    await sendLine(userId, lineMsg).catch(() => {});
     await sendSlack(`🎉 恭喜 ${slackMention(task.assignee)}！\n\n「${task.title}」已完成！\n\n辛苦了，繼續保持 💪`);
     res.json({ ok: true });
   } catch (e) {
