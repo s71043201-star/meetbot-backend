@@ -469,29 +469,33 @@ app.post("/check-reminders", async (req, res) => {
   if (!tasks || !reminders) return res.status(400).json({ error: "缺少參數" });
   const hour = new Date().getHours();
   let sent = 0;
+  const slackByPerson = {};
   for (const task of tasks) {
     if (task.done) continue;
     const dl     = daysLeft(task.deadline);
     const userId = MEMBERS[task.assignee];
     if (!userId) continue;
     if (reminders.dayBefore?.on && dl === reminders.dayBefore.days && hour === reminders.dayBefore.hour) {
-      const lineMsg = `📋 任務提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n截止日期：${task.deadline}（剩 ${dl} 天）\n\n請記得完成 ✓`;
-      await sendLine(userId, lineMsg).catch(() => {});
-      await sendSlack(`📋 任務提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${slackMention(task.assignee)}\n截止日期：${task.deadline}（剩 ${dl} 天）\n\n請記得完成 ✓`);
+      await sendLine(userId, `📋 任務提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n截止日期：${task.deadline}（剩 ${dl} 天）\n\n請記得完成 ✓`).catch(() => {});
+      if (!slackByPerson[task.assignee]) slackByPerson[task.assignee] = [];
+      slackByPerson[task.assignee].push(`📋 「${task.title}」— 截止：${task.deadline}（剩 ${dl} 天）`);
       sent++;
     }
     if (reminders.hourBefore?.on && dl === 0 && hour === (23 - reminders.hourBefore.hours)) {
-      const lineMsg = `⚡ 緊急提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n今天截止！剩約 ${reminders.hourBefore.hours} 小時\n\n請盡快完成 🔥`;
-      await sendLine(userId, lineMsg).catch(() => {});
-      await sendSlack(`⚡ 緊急提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${slackMention(task.assignee)}\n今天截止！剩約 ${reminders.hourBefore.hours} 小時\n\n請盡快完成 🔥`);
+      await sendLine(userId, `⚡ 緊急提醒 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n今天截止！剩約 ${reminders.hourBefore.hours} 小時\n\n請盡快完成 🔥`).catch(() => {});
+      if (!slackByPerson[task.assignee]) slackByPerson[task.assignee] = [];
+      slackByPerson[task.assignee].push(`⚡ 「${task.title}」— 今天截止！`);
       sent++;
     }
     if (reminders.overdueAlert?.on && dl < 0) {
-      const lineMsg = `🚨 逾期警示 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n已逾期 ${Math.abs(dl)} 天！\n\n請盡快處理 ⚠️`;
-      await sendLine(userId, lineMsg).catch(() => {});
-      await sendSlack(`🚨 逾期警示 - MeetBot\n\n「${task.title}」\n\n負責人：${slackMention(task.assignee)}\n已逾期 ${Math.abs(dl)} 天！\n\n請盡快處理 ⚠️`);
+      await sendLine(userId, `🚨 逾期警示 - MeetBot\n\n「${task.title}」\n\n負責人：${task.assignee}\n已逾期 ${Math.abs(dl)} 天！\n\n請盡快處理 ⚠️`).catch(() => {});
+      if (!slackByPerson[task.assignee]) slackByPerson[task.assignee] = [];
+      slackByPerson[task.assignee].push(`🚨 「${task.title}」— 已逾期 ${Math.abs(dl)} 天！`);
       sent++;
     }
+  }
+  for (const [name, items] of Object.entries(slackByPerson)) {
+    await sendSlack(`📬 任務提醒 - MeetBot\n\n${slackMention(name)} 你有 ${items.length} 項任務需注意：\n\n${items.join("\n")}\n\n請盡快處理 ✓`);
   }
   res.json({ ok: true, sent });
 });
