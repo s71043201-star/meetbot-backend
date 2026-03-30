@@ -105,6 +105,7 @@ const ATT_NOTIFY_IDS = [
 
 const TASKS_FB = "https://meetbot-ede53-default-rtdb.asia-southeast1.firebasedatabase.app/meetbot/tasks.json";
 const ATT_FB   = "https://meetbot-ede53-default-rtdb.asia-southeast1.firebasedatabase.app/attendance";
+const MEETINGS_FB = "https://meetbot-ede53-default-rtdb.asia-southeast1.firebasedatabase.app/meetbot/meetings";
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
 const SLACK_MEMBERS = {
@@ -1140,6 +1141,66 @@ app.get("/test-me", async (req, res) => {
     res.send("訊息已發送 ✅");
   } catch (e) {
     res.status(500).send("發送失敗：" + e.message);
+  }
+});
+
+// ── Slack 會議提醒 ──────────────────────────────
+app.post("/send-slack", async (req, res) => {
+  const { webhookUrl, message } = req.body;
+  if (!webhookUrl || !message) return res.status(400).json({ error: "Missing params" });
+  try {
+    await axios.post(webhookUrl, { text: message });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/check-meeting-reminders", async (req, res) => {
+  const { webhookUrl } = req.body;
+  if (!webhookUrl) return res.status(400).json({ error: "Missing webhookUrl" });
+  try {
+    const meetingsRes = await axios.get(`${MEETINGS_FB}.json`);
+    const meetingsObj = meetingsRes.data;
+    if (!meetingsObj) return res.json({ ok: true, sent: 0 });
+    const meetings = Object.values(meetingsObj);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let sent = 0;
+
+    for (const m of meetings) {
+      if (!m.date) continue;
+      const dl = Math.ceil((new Date(m.date) - new Date(todayStr)) / 86400000);
+      const checks = [
+        { key: "day7", days: 7, label: "7 天" },
+        { key: "day3", days: 3, label: "3 天" },
+        { key: "day1", days: 1, label: "1 天" },
+      ];
+
+      for (const check of checks) {
+        if (dl === check.days && !(m.slackSent && m.slackSent[check.key])) {
+          const participants = (m.participants || []).join("、") || "全員";
+          const msg = `📅 *會議提醒（${check.label}前）*\n\n` +
+            `📌 *${m.title}*\n` +
+            `🗓 日期：${m.date}\n` +
+            `⏰ 時間：${m.time || "未定"}\n` +
+            `📍 地點：${m.location || "未定"}\n` +
+            `👥 參加者：${participants}\n` +
+            (m.description ? `\n📝 ${m.description}\n` : "") +
+            `\n請提前準備！`;
+          try {
+            await axios.post(webhookUrl, { text: msg });
+            // 更新 Firebase 已發送標記
+            await axios.patch(`${MEETINGS_FB}/${m.id}.json`, {
+              [`slackSent/${check.key}`]: true
+            });
+            sent++;
+          } catch (e) { console.error("Slack send error:", e.message); }
+        }
+      }
+    }
+    res.json({ ok: true, sent });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
