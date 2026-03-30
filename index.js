@@ -1164,12 +1164,14 @@ app.post("/check-meeting-reminders", async (req, res) => {
     const meetingsObj = meetingsRes.data;
     if (!meetingsObj) return res.json({ ok: true, sent: 0 });
     const meetings = Object.values(meetingsObj);
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // 用台北時區計算今天日期
+    const taipei = toTaipei(new Date());
+    const todayStr = `${taipei.getFullYear()}-${String(taipei.getMonth()+1).padStart(2,'0')}-${String(taipei.getDate()).padStart(2,'0')}`;
     let sent = 0;
 
     for (const m of meetings) {
       if (!m.date) continue;
-      const dl = Math.ceil((new Date(m.date) - new Date(todayStr)) / 86400000);
+      const dl = Math.ceil((new Date(m.date + "T00:00:00+08:00") - new Date(todayStr + "T00:00:00+08:00")) / 86400000);
       const checks = [
         { key: "day7", days: 7, label: "7 天" },
         { key: "day3", days: 3, label: "3 天" },
@@ -1261,8 +1263,11 @@ setInterval(async () => {
 // ── 排程器：會議 Slack 自動提醒（每小時檢查）──
 const FB_BASE = "https://meetbot-ede53-default-rtdb.asia-southeast1.firebasedatabase.app/meetbot";
 let lastMeetingCheck = "";
+let meetingCheckRunning = false; // 防重複執行鎖
 
 async function autoCheckMeetingReminders() {
+  if (meetingCheckRunning) { console.log("[會議提醒] 上次檢查尚未結束，跳過"); return; }
+  meetingCheckRunning = true;
   try {
     // 從 Firebase 讀取 Slack webhook URL
     let webhookUrl = SLACK_WEBHOOK_URL;
@@ -1274,17 +1279,17 @@ async function autoCheckMeetingReminders() {
 
     const meetingsRes = await axios.get(`${MEETINGS_FB}.json`);
     const meetingsObj = meetingsRes.data;
-    if (!meetingsObj) return;
+    if (!meetingsObj) { console.log("[會議提醒] 無會議資料"); return; }
     const meetings = Object.values(meetingsObj);
 
-    // 用台北時區計算今天
+    // 用台北時區計算今天（避免 toISOString 轉回 UTC）
     const taipei = toTaipei(new Date());
-    const todayStr = taipei.toISOString().slice(0, 10);
+    const todayStr = `${taipei.getFullYear()}-${String(taipei.getMonth()+1).padStart(2,'0')}-${String(taipei.getDate()).padStart(2,'0')}`;
     let sent = 0;
 
     for (const m of meetings) {
       if (!m.date) continue;
-      const dl = Math.ceil((new Date(m.date) - new Date(todayStr)) / 86400000);
+      const dl = Math.ceil((new Date(m.date + "T00:00:00+08:00") - new Date(todayStr + "T00:00:00+08:00")) / 86400000);
       const checks = [
         { key: "day7", days: 7, label: "7 天" },
         { key: "day3", days: 3, label: "3 天" },
@@ -1312,8 +1317,11 @@ async function autoCheckMeetingReminders() {
       }
     }
     if (sent > 0) console.log(`[會議提醒] 已發送 ${sent} 則 Slack 提醒`);
+    else console.log("[會議提醒] 本次檢查無需發送");
   } catch (e) {
     console.error("[會議提醒] 自動檢查失敗:", e.message);
+  } finally {
+    meetingCheckRunning = false;
   }
 }
 
