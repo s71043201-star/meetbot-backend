@@ -1258,5 +1258,89 @@ setInterval(async () => {
   }
 }, 60000);
 
+// ── 排程器：會議 Slack 自動提醒（每小時檢查）──
+const FB_BASE = "https://meetbot-ede53-default-rtdb.asia-southeast1.firebasedatabase.app/meetbot";
+let lastMeetingCheck = "";
+
+async function autoCheckMeetingReminders() {
+  try {
+    // 從 Firebase 讀取 Slack webhook URL
+    let webhookUrl = SLACK_WEBHOOK_URL;
+    if (!webhookUrl) {
+      const whRes = await axios.get(`${FB_BASE}/slackWebhook.json`);
+      webhookUrl = whRes.data;
+    }
+    if (!webhookUrl) { console.log("[會議提醒] 無 Slack webhook，跳過"); return; }
+
+    const meetingsRes = await axios.get(`${MEETINGS_FB}.json`);
+    const meetingsObj = meetingsRes.data;
+    if (!meetingsObj) return;
+    const meetings = Object.values(meetingsObj);
+
+    // 用台北時區計算今天
+    const taipei = toTaipei(new Date());
+    const todayStr = taipei.toISOString().slice(0, 10);
+    let sent = 0;
+
+    for (const m of meetings) {
+      if (!m.date) continue;
+      const dl = Math.ceil((new Date(m.date) - new Date(todayStr)) / 86400000);
+      const checks = [
+        { key: "day7", days: 7, label: "7 天" },
+        { key: "day3", days: 3, label: "3 天" },
+        { key: "day1", days: 1, label: "1 天" },
+      ];
+      for (const check of checks) {
+        if (dl === check.days && !(m.slackSent && m.slackSent[check.key])) {
+          const participants = (m.participants || []).join("、") || "全員";
+          const msg = `📅 *會議提醒（${check.label}前）*\n\n` +
+            `📌 *${m.title}*\n` +
+            `🗓 日期：${m.date}\n` +
+            `⏰ 時間：${m.time || "未定"}\n` +
+            `📍 地點：${m.location || "未定"}\n` +
+            `👥 參加者：${participants}\n` +
+            (m.description ? `\n📝 ${m.description}\n` : "") +
+            `\n請提前準備！`;
+          try {
+            await axios.post(webhookUrl, { text: msg });
+            await axios.patch(`${MEETINGS_FB}/${m.id}.json`, {
+              [`slackSent/${check.key}`]: true
+            });
+            sent++;
+          } catch (e) { console.error("[會議提醒] Slack 發送失敗:", e.message); }
+        }
+      }
+    }
+    if (sent > 0) console.log(`[會議提醒] 已發送 ${sent} 則 Slack 提醒`);
+  } catch (e) {
+    console.error("[會議提醒] 自動檢查失敗:", e.message);
+  }
+}
+
+// 每小時整點檢查（每分鐘偵測，整點時觸發）
+setInterval(async () => {
+  const taipei = toTaipei(new Date());
+  const hour = taipei.getHours();
+  const min = taipei.getMinutes();
+  const dateKey = taipei.toISOString().slice(0, 10);
+  const checkKey = `${dateKey}-${hour}`;
+
+  // 每小時的第 0 分鐘觸發（8:00~20:00 之間）
+  if (min === 0 && hour >= 8 && hour <= 20 && lastMeetingCheck !== checkKey) {
+    lastMeetingCheck = checkKey;
+    console.log(`[會議提醒] ${hour}:00 自動檢查中...`);
+    await autoCheckMeetingReminders();
+  }
+}, 60000);
+
+// 啟動時也立即檢查一次
+setTimeout(() => autoCheckMeetingReminders(), 5000);
+
+// ── 自動保活（防止 Render 免費版休眠）──
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`;
+setInterval(() => {
+  axios.get(`${SELF_URL}/ping`).catch(() => {});
+}, 14 * 60 * 1000); // 每 14 分鐘 ping 一次
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log(`MeetBot + 出缺勤系統啟動，port ${PORT}`));
