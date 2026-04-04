@@ -485,13 +485,18 @@ app.post("/parse-meeting", async (req, res) => {
   }
 });
 
-// ── 任務提醒 ──────────────────────────────────
+// ── 任務提醒（一天只提醒一次）──────────────────
+const taskReminderSentToday = {}; // key = "name-dateKey"
+
 app.post("/check-reminders", async (req, res) => {
-  const { tasks, reminders } = req.body;
+  const { tasks, reminders, routineTasks } = req.body;
   if (!tasks || !reminders) return res.status(400).json({ error: "缺少參數" });
-  const hour = new Date().getHours();
+  const taipeiNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+  const hour    = taipeiNow.getHours();
+  const dateKey = taipeiNow.toISOString().slice(0, 10);
   let sent = 0;
   const slackByPerson = {};
+
   for (const task of tasks) {
     if (task.done) continue;
     const dl = daysLeft(task.deadline);
@@ -511,7 +516,30 @@ app.post("/check-reminders", async (req, res) => {
       sent++;
     }
   }
+
+  // 例行任務提醒
+  const WD_NAMES = ["日","一","二","三","四","五","六"];
+  const weekday = taipeiNow.getDay();
+  if (Array.isArray(routineTasks)) {
+    for (const rt of routineTasks) {
+      if (!rt.reminderOn) continue;
+      if (rt.reminderWeekday === weekday && rt.reminderHour === hour) {
+        const name = rt.assignee || "未指派";
+        if (!slackByPerson[name]) slackByPerson[name] = [];
+        slackByPerson[name].push(`🔄 例行任務 —「${rt.title}」（每週${WD_NAMES[rt.reminderWeekday]} ${String(rt.reminderHour).padStart(2,"0")}:00）`);
+        sent++;
+      }
+    }
+  }
+
+  // 一天只發一次 DM 給每位同仁
   for (const [name, items] of Object.entries(slackByPerson)) {
+    const dailyKey = `${name}-${dateKey}`;
+    if (taskReminderSentToday[dailyKey]) {
+      console.log(`跳過 ${name}：今日已發送過提醒`);
+      continue;
+    }
+    taskReminderSentToday[dailyKey] = true;
     await sendSlackToUser(name, `📬 任務提醒 - MeetBot\n\n你有 ${items.length} 項任務需注意：\n\n${items.join("\n")}\n\n請盡快處理 ✓\n🔗 https://s71043201-star.github.io/meetbot-app/`);
   }
   res.json({ ok: true, sent });
