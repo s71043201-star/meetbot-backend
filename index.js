@@ -478,7 +478,9 @@ app.post("/parse-meeting", async (req, res) => {
       contents: [{ role: "user", parts: [{ text: `你是會議記錄分析助理。從以下會議紀錄中，找出所有「任務/行動項目」。\n每個任務需包含：負責人、任務描述、截止日期。今天是 ${today_str}。\n若日期只說「本週五」請換算成實際日期。若無法確定截止日期，設定為 7 天後。\n負責人請從以下名單選最接近的：${TEAM.join("、")}。若無法對應，填「待指派」。\n\n請只回傳 JSON 陣列，格式如下，不要有任何說明文字：\n[{"title":"任務描述","assignee":"負責人","deadline":"YYYY-MM-DD"}]\n\n會議紀錄：\n${text}` }] }],
       generationConfig: { maxOutputTokens: 4000 }
     }, { headers: { "Content-Type": "application/json" } });
-    const raw = response.data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+    const parts = response.data.candidates?.[0]?.content?.parts || [];
+    const textPart = parts.filter(p => p.text).pop();
+    const raw = textPart?.text || "[]";
     const items = JSON.parse(raw.replace(/```json|```/g, "").trim());
     res.json({ items });
   } catch (e) {
