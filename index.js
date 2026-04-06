@@ -1382,6 +1382,18 @@ setInterval(async () => {
 setTimeout(() => autoCheckMeetingReminders(), 5000);
 
 // ── 自動保活（防止 Render 免費版休眠）──
+// ── Gemini Proxy（供 meeting-system 前端呼叫）────
+app.post("/gemini-proxy", async (req, res) => {
+  try {
+    const geminiKey = process.env.GEMINI_API_KEY;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+    const response = await axios.post(geminiUrl, req.body, { headers: { "Content-Type": "application/json" } });
+    res.json(response.data);
+  } catch (e) {
+    res.status(e.response?.status || 500).json(e.response?.data || { error: e.message });
+  }
+});
+
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`;
 setInterval(() => {
   axios.get(`${SELF_URL}/ping`).catch(() => {});
