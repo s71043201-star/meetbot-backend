@@ -467,7 +467,7 @@ app.post("/webhook", async (req, res) => {
 });
 
 // ── AI 解析會議記錄（含 fallback 模型 + retry）────
-const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-preview-04-17"];
+const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash-preview-04-17", "gemini-1.5-flash-latest"];
 
 async function callGemini(prompt, geminiKey) {
   let lastErr;
