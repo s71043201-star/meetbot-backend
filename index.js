@@ -264,10 +264,10 @@ function buildAttendanceReport(records, month) {
 
   const total = filtered.reduce((s, r) => s + (r.hours || 0), 0);
   let msg = `📊 ${month} 月臨時人員出勤記錄\n${"═".repeat(22)}\n`;
-  msg += `出勤人次：${filtered.length} 筆　總時數：${Math.round(total * 10) / 10} 小時\n${"─".repeat(22)}\n`;
+  msg += `出勤人次：${filtered.length} 筆　總時數：${total} 小時\n${"─".repeat(22)}\n`;
 
   Object.entries(byName).forEach(([name, info]) => {
-    msg += `\n👤 ${name}　出勤 ${info.count} 次　合計 ${Math.round(info.hours * 10) / 10} 時\n`;
+    msg += `\n👤 ${name}　出勤 ${info.count} 次　合計 ${info.hours} 時\n`;
     info.list.sort((a, b) => a.day - b.day).forEach(r => {
       msg += `   • ${month}/${r.day}（${r.course}）${r.hours} 時\n`;
     });
@@ -470,21 +470,35 @@ app.post("/webhook", async (req, res) => {
 app.post("/parse-meeting", async (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: "缺少 text" });
-  const today_str = new Date().toISOString().slice(0, 10);
+  const today_str = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" })).toISOString().slice(0, 10);
   try {
     const geminiKey = process.env.GEMINI_API_KEY;
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+    if (!geminiKey) return res.status(500).json({ error: "未設定 GEMINI_API_KEY" });
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
+    const prompt = `你是會議記錄分析助理。從以下會議紀錄中，找出所有「任務/行動項目」。
+每個任務需包含：負責人（可多人）、任務描述、截止日期。今天是 ${today_str}。
+若日期只說「本週五」請換算成實際日期。若無法確定截止日期，設定為 7 天後。
+負責人請從以下名單選最接近的：${TEAM.join("、")}。若無法對應，填「待指派」。
+若任務有多位負責人，用逗號分隔（例："蔡蕙芳,戴豐逸"）。
+
+請只回傳 JSON 陣列，格式如下，不要有任何說明文字：
+[{"title":"任務描述","assignee":"負責人1,負責人2","deadline":"YYYY-MM-DD"}]
+
+會議紀錄：
+${text}`;
     const response = await axios.post(geminiUrl, {
-      contents: [{ role: "user", parts: [{ text: `你是會議記錄分析助理。從以下會議紀錄中，找出所有「任務/行動項目」。\n每個任務需包含：負責人、任務描述、截止日期。今天是 ${today_str}。\n若日期只說「本週五」請換算成實際日期。若無法確定截止日期，設定為 7 天後。\n負責人請從以下名單選最接近的：${TEAM.join("、")}。若無法對應，填「待指派」。\n\n請只回傳 JSON 陣列，格式如下，不要有任何說明文字：\n[{"title":"任務描述","assignee":"負責人","deadline":"YYYY-MM-DD"}]\n\n會議紀錄：\n${text}` }] }],
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: { maxOutputTokens: 4000 }
-    }, { headers: { "Content-Type": "application/json" } });
+    }, { headers: { "Content-Type": "application/json" }, timeout: 30000 });
     const parts = response.data.candidates?.[0]?.content?.parts || [];
     const textPart = parts.filter(p => p.text).pop();
     const raw = textPart?.text || "[]";
     const items = JSON.parse(raw.replace(/```json|```/g, "").trim());
     res.json({ items });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error("parse-meeting 錯誤:", e.response?.data || e.message);
+    const msg = e.response?.data?.error?.message || e.message || "AI 解析失敗";
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -607,7 +621,7 @@ app.post("/checkout", async (req, res) => {
     const record      = await fbGet(`/${sessionId}`);
     if (!record) return res.status(404).json({ error: "找不到簽到記錄" });
     const checkinTime = new Date(record.checkinTime);
-    const hours       = Math.round((now - checkinTime) / 3600000 * 10) / 10;
+    const hours       = Math.max(1, Math.ceil((now - checkinTime) / 3600000));
     const { courseType, teacher, plannedHours, registeredCount, actualCount, walkInCount, summary } = req.body;
     const checkinStr  = toTaipei(checkinTime).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
     const checkoutStr = taipei.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
@@ -781,7 +795,7 @@ function buildPersonSheet(wb, personName, records) {
       cell.value = "累計";
       cell.style = { font:{...tk, bold:true}, alignment:mid, border:bdr };
     } else if (c === 9) {
-      cell.value = Math.round(totalHours * 10) / 10;
+      cell.value = totalHours;
       cell.style = { font:{...tk, bold:true}, alignment:mid, border:bdr };
     } else {
       cell.style = { border:bdr };
