@@ -466,7 +466,35 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-// ── AI 解析會議記錄 ────────────────────────────
+// ── AI 解析會議記錄（含 fallback 模型 + retry）────
+const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-preview-04-17"];
+
+async function callGemini(prompt, geminiKey) {
+  let lastErr;
+  for (const model of GEMINI_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+    try {
+      console.log(`嘗試模型: ${model}`);
+      const response = await axios.post(url, {
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 4000 }
+      }, { headers: { "Content-Type": "application/json" }, timeout: 30000 });
+      const parts = response.data.candidates?.[0]?.content?.parts || [];
+      const textPart = parts.filter(p => p.text).pop();
+      console.log(`模型 ${model} 成功`);
+      return textPart?.text || "[]";
+    } catch (e) {
+      const status = e.response?.status;
+      const msg = e.response?.data?.error?.message || e.message;
+      console.warn(`模型 ${model} 失敗 (${status}): ${msg}`);
+      lastErr = e;
+      if (status === 429 || status === 503) continue;
+      throw e;
+    }
+  }
+  throw lastErr;
+}
+
 app.post("/parse-meeting", async (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: "缺少 text" });
@@ -474,7 +502,6 @@ app.post("/parse-meeting", async (req, res) => {
   try {
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey) return res.status(500).json({ error: "未設定 GEMINI_API_KEY" });
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
     const prompt = `你是會議記錄分析助理。從以下會議紀錄中，找出所有「任務/行動項目」。
 每個任務需包含：負責人（可多人）、任務描述、截止日期。今天是 ${today_str}。
 若日期只說「本週五」請換算成實際日期。若無法確定截止日期，設定為 7 天後。
@@ -486,13 +513,7 @@ app.post("/parse-meeting", async (req, res) => {
 
 會議紀錄：
 ${text}`;
-    const response = await axios.post(geminiUrl, {
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 4000 }
-    }, { headers: { "Content-Type": "application/json" }, timeout: 30000 });
-    const parts = response.data.candidates?.[0]?.content?.parts || [];
-    const textPart = parts.filter(p => p.text).pop();
-    const raw = textPart?.text || "[]";
+    const raw = await callGemini(prompt, geminiKey);
     const items = JSON.parse(raw.replace(/```json|```/g, "").trim());
     res.json({ items });
   } catch (e) {
