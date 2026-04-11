@@ -1212,8 +1212,11 @@ app.get("/line-quota", async (req, res) => {
 // ── 測試 ──────────────────────────────────────
 app.get("/test-me", async (req, res) => {
   try {
-    await sendLine("Uece4baaf97cfab39ad79c6ed0ee55d03", "📋 MeetBot 測試成功！LINE Bot 已正常連線 🎉");
-    res.send("訊息已發送 ✅");
+    const targetName = req.query.name;
+    const targetId = targetName ? MEMBERS[targetName] : "Uece4baaf97cfab39ad79c6ed0ee55d03";
+    if (!targetId) return res.status(400).send(`找不到成員：${targetName}`);
+    await sendLine(targetId, "📋 MeetBot 測試成功！LINE Bot 已正常連線 🎉");
+    res.send(`訊息已發送給 ${targetName || "戴豐逸"} ✅`);
   } catch (e) {
     res.status(500).send("發送失敗：" + e.message);
   }
