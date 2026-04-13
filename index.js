@@ -1427,7 +1427,9 @@ setTimeout(() => autoCheckMeetingReminders(), 5000);
 app.post("/gemini-proxy", async (req, res) => {
   try {
     const geminiKey = process.env.GEMINI_API_KEY;
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
+    const model = req.body.model || "gemini-2.0-flash";
+    delete req.body.model;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
     const response = await axios.post(geminiUrl, req.body, { headers: { "Content-Type": "application/json" } });
     res.json(response.data);
   } catch (e) {
