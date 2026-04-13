@@ -1427,8 +1427,13 @@ setTimeout(() => autoCheckMeetingReminders(), 5000);
 app.post("/gemini-proxy", async (req, res) => {
   try {
     const geminiKey = process.env.GEMINI_API_KEY;
-    const model = req.body.model || "gemini-2.0-flash";
+    const model = req.body.model || "gemini-2.5-flash";
     delete req.body.model;
+    // 對思考模型(2.5+)：限制思考token，確保回覆不被截斷
+    if (model.includes("2.5")) {
+      req.body.generationConfig = { maxOutputTokens: 65536, ...(req.body.generationConfig || {}) };
+      if (!req.body.thinkingConfig) req.body.thinkingConfig = { thinkingBudget: 128 };
+    }
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
     const response = await axios.post(geminiUrl, req.body, { headers: { "Content-Type": "application/json" } });
     res.json(response.data);
